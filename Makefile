@@ -1,5 +1,5 @@
 # sbcl-rasp: build and test every component from here.
-#   make         build RASP and, on macOS, the Browsered helper
+#   make         build RASP and, on macOS and Linux, the Browsered helper
 #   make check   run the RASP and qprolog tests
 SBCL ?= sbcl
 

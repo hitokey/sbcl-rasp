@@ -204,7 +204,7 @@ static bool find_claude(const char *home, char *path, size_t size)
         ".volta/bin/claude", ".bun/bin/claude"
     };
     static const char *const system_paths[] = {
-        "/opt/homebrew/bin/claude", "/usr/local/bin/claude"
+        "/opt/homebrew/bin/claude", "/usr/local/bin/claude", "/usr/bin/claude"
     };
     for (size_t index = 0; index < sizeof(home_paths) / sizeof(home_paths[0]); ++index) {
         int written = snprintf(path, size, "%s/%s", home, home_paths[index]);

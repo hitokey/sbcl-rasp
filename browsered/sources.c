@@ -246,6 +246,7 @@ static bool memory_path(char *path, size_t size, const char *file)
 {
     const char *home = getenv("HOME");
     if (!home || home[0] != '/') return false;
+#ifdef __APPLE__
     const char *const levels[] = {"Library", "Library/Application Support",
                                   "Library/Application Support/Browsered"};
     for (size_t index = 0; index < 3; ++index) {
@@ -254,6 +255,17 @@ static bool memory_path(char *path, size_t size, const char *file)
     }
     int length = snprintf(path, size, "%s/Library/Application Support/Browsered/%s", home, file);
     return length > 0 && (size_t)length < size;
+#else
+    const char *xdg = getenv("XDG_CONFIG_HOME");
+    char config_root[PATH_MAX], browsered_dir[PATH_MAX];
+    if (xdg && xdg[0] == '/') snprintf(config_root, sizeof(config_root), "%s", xdg);
+    else snprintf(config_root, sizeof(config_root), "%s/.config", home);
+    if (mkdir(config_root, 0700) != 0 && errno != EEXIST) return false;
+    snprintf(browsered_dir, sizeof(browsered_dir), "%s/Browsered", config_root);
+    if (mkdir(browsered_dir, 0700) != 0 && errno != EEXIST) return false;
+    int length = snprintf(path, size, "%s/%s", browsered_dir, file);
+    return length > 0 && (size_t)length < size;
+#endif
 }
 
 static void remember_source(const char *name, const char *text_path)

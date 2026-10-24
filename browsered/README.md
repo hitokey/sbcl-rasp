@@ -13,10 +13,13 @@ a751c12. Changing the editor itself (its C interpreter, the build of
 - **macOS:** `make` (at the top of sbcl-rasp, or here) builds `Browsered.app`.
   Double-click it: it starts the helper and opens the editor at
   http://127.0.0.1:8766/.
-- **Linux:** open `Browsered.html` in Chrome or Edge. There is no Linux
-  helper yet.
-- **Windows:** `windows/` has the helper's source and the installer script;
-  the installer is built by GitHub Actions.
+- **Linux:** `make` builds `Browsered-linux/bin/browsered`; run it to start
+  the helper and open the editor at http://127.0.0.1:8766/. PDF export and
+  the NAIA/autoclave routes are not available on this helper (see
+  OPERATIONS.md).
+- **Windows:** `make windows` (needs a mingw-w64 cross-compiler) cross-builds
+  the helper with `windows/build.sh`; `windows/browsered.iss` is the Inno
+  Setup installer script, run separately with `iscc`.
 - **Tailoring:** key bindings and commands are in `editor.scm` and
   `init.scm`, loaded as text; changing them needs no rebuild.
 

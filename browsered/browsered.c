@@ -1,11 +1,14 @@
 /* Browsered's native launcher and loopback-only HTTP server.
- * Uses macOS system libraries only. The browser runs the editor itself.
+ * Portable POSIX, with macOS-only parts guarded by __APPLE__.
+ * The browser runs the editor itself.
  */
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#ifdef __APPLE__
 #include <mach-o/dyld.h>
+#endif
 #include <signal.h>
 #include <spawn.h>
 #include <stdbool.h>
@@ -20,9 +23,11 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#ifdef __APPLE__
 #include <CoreFoundation/CoreFoundation.h>
-extern char **environ;
 CFDataRef browsered_create_pdf(const char *, size_t, const char *);
+#endif
+extern char **environ;
 char *browsered_run_assistant(const char *, size_t, const char *);
 char *browsered_run_claude(const char *, size_t);
 char *browsered_ask_naia(const char *, size_t);
@@ -109,7 +114,9 @@ static void serve_action(int client, const char *url, const char *request,
     size_t output_length = 0;
     const char *content_type = NULL;
     char *answer = NULL;
+#ifdef __APPLE__
     CFDataRef pdf = NULL;
+#endif
     if (strcmp(url, "/assistant") == 0) {
         answer = browsered_run_assistant(body, length, resources);
         if (answer) {
@@ -142,6 +149,7 @@ static void serve_action(int client, const char *url, const char *request,
             content_type = "text/plain; charset=utf-8";
         }
     } else if (strcmp(url, "/pdf") == 0) {
+#ifdef __APPLE__
         char rules_path[PATH_MAX];
         snprintf(rules_path, sizeof(rules_path), "%s/../../../formatting.xml", resources);
         if (access(rules_path, R_OK) != 0) {
@@ -153,6 +161,11 @@ static void serve_action(int client, const char *url, const char *request,
             output_length = (size_t)CFDataGetLength(pdf);
             content_type = "application/pdf";
         }
+#else
+        free(body);
+        send_error(client, "501 Not Implemented");
+        return;
+#endif
     }
     free(body);
     if (!bytes) { send_error(client, "502 Bad Gateway"); return; }
@@ -162,7 +175,9 @@ static void serve_action(int client, const char *url, const char *request,
         "Cache-Control: no-store\r\nConnection: close\r\n\r\n", content_type, output_length);
     if (send_all(client, header, (size_t)header_length)) send_all(client, (const char *)bytes, output_length);
     free(answer);
+#ifdef __APPLE__
     if (pdf) CFRelease(pdf);
+#endif
 }
 
 static void serve_request(int client, const char *resources)
@@ -301,7 +316,10 @@ static void record_helper(int lock, pid_t helper, const char *identity)
     char line[PATH_MAX + 64];
     int length = snprintf(line, sizeof(line), "%ld %s\n", (long)helper, identity);
     if (length > 0 && (size_t)length < sizeof(line) && ftruncate(lock, 0) == 0) {
-        if (pwrite(lock, line, (size_t)length, 0) != (ssize_t)length) (void)ftruncate(lock, 0);
+        if (pwrite(lock, line, (size_t)length, 0) != (ssize_t)length) {
+            int ignored = ftruncate(lock, 0);
+            (void)ignored;
+        }
     }
 }
 
@@ -330,7 +348,11 @@ static bool replace_other_helper(int lock, const char *identity)
 
 static void open_editor(void)
 {
+#ifdef __APPLE__
     char *arguments[] = {"/usr/bin/open", "-a", "Google Chrome", EDITOR_URL, NULL};
+#else
+    char *arguments[] = {"/usr/bin/xdg-open", EDITOR_URL, NULL};
+#endif
     pid_t process;
     if (posix_spawn(&process, arguments[0], NULL, NULL, arguments, environ) == 0) {
         waitpid(process, NULL, 0);
@@ -341,8 +363,15 @@ int main(int argc, char **argv)
 {
     /* Resolve assets relative to the app so the whole bundle can be moved. */
     char executable[PATH_MAX], resolved[PATH_MAX], resources[PATH_MAX];
+#ifdef __APPLE__
     uint32_t capacity = sizeof(executable);
     if (_NSGetExecutablePath(executable, &capacity) != 0 || !realpath(executable, resolved)) return 1;
+#else
+    ssize_t link_length = readlink("/proc/self/exe", executable, sizeof(executable) - 1);
+    if (link_length <= 0) return 1;
+    executable[link_length] = '\0';
+    if (!realpath(executable, resolved)) return 1;
+#endif
     struct stat program;
     char identity[PATH_MAX + 32];
     if (stat(resolved, &program) != 0) return 1;
