@@ -6,6 +6,7 @@ rasp/bin/
 *.fasl
 rasp/tag/auxiliary_files/seclarge-c2s.lex
 browsered/Browsered.app/
+browsered/Browsered/
 browsered/windows/stage/
 browsered/windows/build/
 qprolog/bench/out/

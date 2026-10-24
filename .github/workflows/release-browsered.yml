@@ -9,7 +9,16 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - id: version
+        run: echo "version=${GITHUB_REF_NAME#browsered-v}" >> "$GITHUB_OUTPUT"
+
+  linux:
+    needs: version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,14 +27,60 @@ jobs:
       - name: Test
         run: make -C browsered check
       - name: Package
-        run: |
-          version=${GITHUB_REF_NAME#browsered-v}
-          tar -czf "browsered-$version.tar.gz" -C browsered Browsered-linux
+        run: (cd browsered && tar -czf "../Browsered-${{ needs.version.outputs.version }}-linux.tar.gz" Browsered)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: browsered-linux
+          path: Browsered-*-linux.tar.gz
+
+  macos:
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: brew install cmark-gfm
+      - name: Build
+        run: make -C browsered
+      - name: Test
+        run: make -C browsered check
+      - name: Package
+        run: (cd browsered && zip -r -q "../Browsered-${{ needs.version.outputs.version }}-macos.zip" Browsered.app)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: browsered-macos
+          path: Browsered-*-macos.zip
+
+  windows:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install mingw-w64
+        run: sudo apt-get update && sudo apt-get install -y mingw-w64
+      - name: Build
+        env:
+          BROWSERED_VERSION: ${{ needs.version.outputs.version }}
+        run: make -C browsered windows
+      - name: Package
+        run: (cd browsered/windows/stage && zip -r -q "../../../Browsered-${{ needs.version.outputs.version }}-windows.zip" .)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: browsered-windows
+          path: Browsered-*-windows.zip
+
+  release:
+    needs: [version, linux, macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
       - env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          version=${GITHUB_REF_NAME#browsered-v}
-          gh release create "$GITHUB_REF_NAME" browsered-*.tar.gz \
+          gh release create "$GITHUB_REF_NAME" dist/* \
             --repo "$GITHUB_REPOSITORY" \
-            --title "Browsered $version" \
+            --title "Browsered ${{ needs.version.outputs.version }}" \
             --generate-notes

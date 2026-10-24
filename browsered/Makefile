@@ -7,7 +7,7 @@
 
 UNAME := $(shell uname -s)
 APP := Browsered.app
-LINUX_DIR := Browsered-linux
+LINUX_DIR := Browsered
 # Homebrew prefix, if any, for libcmark-gfm
 BREW := $(shell brew --prefix 2>/dev/null)
 LIBDIRS := $(if $(BREW),-I$(BREW)/include -L$(BREW)/lib)
@@ -22,7 +22,7 @@ RESOURCES := Browsered.html keys.js scheme.js editor.scm init.scm \
 ifeq ($(UNAME),Darwin)
 all: $(APP)/Contents/MacOS/browsered
 else ifeq ($(UNAME),Linux)
-all: $(LINUX_DIR)/bin/browsered
+all: $(LINUX_DIR)/browsered
 else
 all:
 	@echo "Browsered: open browsered/Browsered.html in Chrome or Edge (the helper is built on macOS, Linux and Windows)."
@@ -35,11 +35,11 @@ $(APP)/Contents/MacOS/browsered: browsered.c assistant.c runtime-policy.h source
 	    $(LIBDIRS) -lxml2 -lcmark-gfm $(EXTLIB) -o $@
 	cp $(RESOURCES) $(APP)/Contents/Resources/
 
-$(LINUX_DIR)/bin/browsered: browsered.c assistant.c runtime-policy.h sources.c $(RESOURCES)
-	mkdir -p $(LINUX_DIR)/bin $(LINUX_DIR)/Resources
+$(LINUX_DIR)/browsered: browsered.c assistant.c runtime-policy.h sources.c $(RESOURCES)
+	mkdir -p $(LINUX_DIR)
 	cc -std=c11 -D_GNU_SOURCE -Wall -Wextra -Wno-format-truncation -Werror -O2 \
 	    browsered.c assistant.c sources.c -o $@
-	cp $(RESOURCES) $(LINUX_DIR)/Resources/
+	cp $(RESOURCES) $(LINUX_DIR)/
 
 windows:
 	cd windows && ./build.sh

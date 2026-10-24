@@ -1,6 +1,10 @@
 /* Browsered's native launcher and loopback-only HTTP server.
  * Portable POSIX, with macOS-only parts guarded by __APPLE__.
  * The browser runs the editor itself.
+ *
+ * browsered          start (or reuse) the helper and open the editor
+ * browsered --serve  start the helper without opening a browser
+ * browsered --quit   stop a running helper
  */
 #include <arpa/inet.h>
 #include <errno.h>
@@ -87,6 +91,11 @@ static void serve_action(int client, const char *url, const char *request,
     headers[header_size] = '\0';
     if (!strstr(headers, "\r\nOrigin: http://127.0.0.1:8766\r\n")) {
         send_error(client, "403 Forbidden");
+        return;
+    }
+    if (strcmp(url, "/quit") == 0) {
+        send_error(client, "204 No Content");
+        kill(getppid(), SIGTERM);
         return;
     }
     const char *length_header = strstr(headers, "\r\nContent-Length:");
@@ -210,7 +219,7 @@ static void serve_request(int client, const char *resources)
     if (strcmp(method, "POST") == 0 &&
         (strcmp(url, "/assistant") == 0 || strcmp(url, "/claude") == 0 ||
          strcmp(url, "/pdf") == 0 || strcmp(url, "/naia") == 0 ||
-         strcmp(url, "/autoclave") == 0)) {
+         strcmp(url, "/autoclave") == 0 || strcmp(url, "/quit") == 0)) {
         serve_action(client, url, request, used, resources);
         return;
     }
@@ -236,7 +245,18 @@ static void serve_request(int client, const char *resources)
     char filename[PATH_MAX];
     int path_length = -1;
     if (strcmp(selected->filename, "init.scm") == 0) {
+#ifdef __APPLE__
         path_length = snprintf(filename, sizeof(filename), "%s/../../../init.scm", resources);
+#else
+        const char *xdg_config = getenv("XDG_CONFIG_HOME");
+        const char *home = getenv("HOME");
+        char config_dir[PATH_MAX];
+        if (xdg_config && xdg_config[0] == '/')
+            snprintf(config_dir, sizeof(config_dir), "%s/Browsered", xdg_config);
+        else
+            snprintf(config_dir, sizeof(config_dir), "%s/.config/Browsered", home ? home : "");
+        path_length = snprintf(filename, sizeof(filename), "%s/init.scm", config_dir);
+#endif
         if (path_length >= 0 && (size_t)path_length < sizeof(filename) &&
             access(filename, R_OK) != 0) path_length = -1;
     }
@@ -346,6 +366,29 @@ static bool replace_other_helper(int lock, const char *identity)
     return false;
 }
 
+/* Ask a running helper to exit (the editor's Quit action, or an upgrade). */
+static int quit_running_helper(void)
+{
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) return 1;
+    struct sockaddr_in address = {
+        .sin_family = AF_INET,
+        .sin_port = htons(PORT),
+        .sin_addr.s_addr = htonl(INADDR_LOOPBACK)
+    };
+    int result = 1;
+    if (connect(sock, (struct sockaddr *)&address, sizeof(address)) == 0) {
+        const char *request = "POST /quit HTTP/1.1\r\nHost: 127.0.0.1:8766\r\n"
+            "Origin: http://127.0.0.1:8766\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+        send_all(sock, request, strlen(request));
+        char ignored[256];
+        while (recv(sock, ignored, sizeof(ignored), 0) > 0) {}
+        result = 0;
+    }
+    close(sock);
+    return result;
+}
+
 static void open_editor(void)
 {
 #ifdef __APPLE__
@@ -361,6 +404,8 @@ static void open_editor(void)
 
 int main(int argc, char **argv)
 {
+    if (argc > 1 && strcmp(argv[1], "--quit") == 0) return quit_running_helper();
+
     /* Resolve assets relative to the app so the whole bundle can be moved. */
     char executable[PATH_MAX], resolved[PATH_MAX], resources[PATH_MAX];
 #ifdef __APPLE__
@@ -379,7 +424,11 @@ int main(int argc, char **argv)
     char *separator = strrchr(resolved, '/');
     if (!separator) return 1;
     *separator = '\0';
+#ifdef __APPLE__
     int length = snprintf(resources, sizeof(resources), "%s/../Resources", resolved);
+#else
+    int length = snprintf(resources, sizeof(resources), "%s", resolved);
+#endif
     if (length < 0 || (size_t)length >= sizeof(resources)) return 1;
 
     /* A per-user lock lets repeated app launches reuse our existing server. */

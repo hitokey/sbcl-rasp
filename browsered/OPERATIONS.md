@@ -74,7 +74,9 @@ development/build rules, see `AGENTS.md`; for the end-user tool policy, see
 | `/assistant`, `/claude` | yes | yes | yes |
 | `/pdf` | renders a real PDF | `501 Not Implemented` | `501 Not Implemented` |
 | `/naia`, `/autoclave` | yes | no | no |
+| `/quit` (and `browsered --quit`) | yes | yes | yes |
 | Source fetching (`browsered_fetch_sources`) | yes | yes | no |
+| Portable package layout | `Browsered.app` bundle (`Contents/MacOS/`, `Contents/Resources/`) | flat `Browsered/` folder (executable and resources side by side) | flat folder (executable and resources side by side) |
 | Build | `make` → `Browsered.app` | `make` → `Browsered-linux/bin/browsered` | `make windows` → `windows/build.sh` → `windows/stage` → `iscc windows/browsered.iss` |
 
 ## NAIA / autoclave workflow
