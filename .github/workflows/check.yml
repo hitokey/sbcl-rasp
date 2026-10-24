@@ -15,11 +15,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Install SBCL
-        run: |
-          if [ "$(uname -s)" = Darwin ]; then brew install sbcl cmark-gfm
-          else sudo apt-get update && sudo apt-get install -y sbcl; fi
+      - uses: ./.github/actions/install-build-deps
+        with:
+          mingw: ${{ matrix.os == 'ubuntu-latest' }}
       - name: Build
         run: make
       - name: Test
         run: make check
+      - name: Build Windows cross-compile
+        if: matrix.os == 'ubuntu-latest'
+        run: cd browsered && make windows

@@ -1,0 +1,31 @@
+name: release-browsered
+
+on:
+  push:
+    tags:
+      - 'browsered-v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: make -C browsered
+      - name: Test
+        run: make -C browsered check
+      - name: Package
+        run: |
+          version=${GITHUB_REF_NAME#browsered-v}
+          tar -czf "browsered-$version.tar.gz" -C browsered Browsered-linux
+      - env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          version=${GITHUB_REF_NAME#browsered-v}
+          gh release create "$GITHUB_REF_NAME" browsered-*.tar.gz \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Browsered $version" \
+            --generate-notes

@@ -1,0 +1,20 @@
+name: Install build dependencies
+description: Installs SBCL and, on macOS, cmark-gfm; optionally mingw-w64 on Linux
+inputs:
+  mingw:
+    description: Also install the mingw-w64 cross-compiler (Linux only)
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        if [ "$(uname -s)" = Darwin ]; then
+          brew install sbcl cmark-gfm
+        else
+          sudo apt-get update
+          sudo apt-get install -y sbcl
+          if [ "${{ inputs.mingw }}" = "true" ]; then
+            sudo apt-get install -y mingw-w64
+          fi
+        fi
